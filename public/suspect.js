@@ -101,7 +101,7 @@
   function sideHtml() {
     var v = view, h = '';
     if (v.phase === 'arrest') {
-      h += '<div class="card center"><h2>🚨 체포되었습니다</h2><p>훔친 골드코인은 모두 압수되었습니다.<br>곧 수사관이 조사를 시작합니다.</p></div>';
+      h += '<div class="card center"><h2>🚨 체포되었습니다</h2><p>곧 수사관이 조사를 시작합니다.</p></div>';
     } else if (v.phase === 'interrogation') {
       if (v.canChoose) {
         h += '<div class="card choice-panel"><h3>최종 진술을 선택하세요</h3>' +
@@ -149,7 +149,6 @@
     $('susMain').className = 'sus-main two' + (view.verdict ? ' verdict' : '');
     document.title = '조사실 ' + view.label;
     $('roomLabel').textContent = view.label + ' · ' + view.myName;
-    $('myCoinsTop').innerHTML = view.sackCoins != null ? '압수된 자루 💰 <b>' + view.sackCoins + '</b>개' : '';
     $('chatInput').disabled = !view.canChat;
     renderChat();
     var html = sideHtml();

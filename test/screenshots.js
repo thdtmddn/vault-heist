@@ -16,21 +16,18 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'vh-shot-'));
 
-// 16:9 화면 (로비 제외 모든 화면)
-const WIDE = [
+// 데스크톱 16:9 (수사관·로비·현황판·용의자·스태프)
+const DESKTOP = [
   { n: '1280x720', w: 1280, h: 720 },
   { n: '1366x768', w: 1366, h: 768 },
-  { n: '1600x900', w: 1600, h: 900 },
+  { n: '1536x864', w: 1536, h: 864 },
   { n: '1920x1080', w: 1920, h: 1080 },
-  { n: 'tab1280x800', w: 1280, h: 800 },
 ];
-// 로비: 가로 + 세로
-const LOBBY = [
-  { n: '1920x1080', w: 1920, h: 1080 },
-  { n: '1280x720', w: 1280, h: 720 },
-  { n: '768x1024', w: 768, h: 1024 },
-  { n: '810x1080', w: 810, h: 1080 },
-  { n: 'phone390x844', w: 390, h: 844 },
+// 잡는 사람: 휴대폰 세로
+const PHONE = [
+  { n: '360x800', w: 360, h: 800 },
+  { n: '390x844', w: 390, h: 844 },
+  { n: '412x915', w: 412, h: 915 },
 ];
 
 let fails = 0;
@@ -99,11 +96,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
     ok(name + ' (' + sizes.map((s) => s.n).join(', ') + ')');
   }
-  const big = WIDE[3];
-  const W169 = { noPageScroll: true };
+  const big = DESKTOP[3];
+  const WIDE = DESKTOP;
 
   // ---- 로비 ----
-  const lobby = await open('/lobby', LOBBY[0]);
+  const lobby = await open('/lobby', big);
   await login(lobby);
   for (const t of [['1팀', '김철수', '이영희'], ['독수리', '박민수', '최지우'], ['3팀', '', ''], ['고양이', '정하늘', '한바다'], ['5조 어벤져스', '강하늘', '윤봄']]) {
     await lobby.fill('#teamName', t[0]); await lobby.fill('#memA', t[1]); await lobby.fill('#memB', t[2]);
@@ -122,33 +119,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const join = await open('/', big);
   await join.waitForSelector('#scrJoin:not(.hidden)');
   await capture(join, 's1_join', WIDE, { noPageScroll: true, mustSee: ['#joinCode', '#joinForm button'] });
-  const susA = await open('/?code=' + codes[0], big, true);
-  const susB = await open('/?code=' + codes[1], big, true);
-  const susA2 = await open('/?code=' + codes[2], big, true);
-  const susB2 = await open('/?code=' + codes[3], big, true);
+  const susA = await open('/?code=' + codes[0], big);
+  const susB = await open('/?code=' + codes[1], big);
+  const susA2 = await open('/?code=' + codes[2], big);
+  const susB2 = await open('/?code=' + codes[3], big);
   await susA.waitForSelector('#scrWait:not(.hidden)');
   await capture(susA, 's2_wait', WIDE, { noPageScroll: true, mustSee: ['#scrWait h1'] });
 
-  // ---- 잡는 사람 ----
-  const catcher = await open('/catcher', big, true);
+  // ---- 잡는 사람 (휴대폰 세로) ----
+  const catcher = await open('/catcher', PHONE[1], true);
   await login(catcher);
   await catcher.waitForSelector('.arrest');
-  await capture(catcher, 'c1_catcher', WIDE, { noPageScroll: true, mustSee: ['.arrest'] });
+  await capture(catcher, 'c1_catcher', PHONE, { mustSee: ['.arrest'] });
   await catcher.click('.arrest');
-  await catcher.waitForSelector('.modal #coin0');
-  await catcher.click('.modal [data-d="1"]');
-  await catcher.click('.modal [data-d="1"]');
-  await capture(catcher, 'c2_coins', WIDE, { noPageScroll: true, mustSee: ['.modal [data-x=ok]', '#coin0', '.modal [data-d="1"]'] });
-  check((await catcher.inputValue('#coin0')) === '22', '잡는 사람: + 버튼 (20 → 22)');
+  await catcher.waitForSelector('.modal [data-x=ok]');
+  await capture(catcher, 'c2_confirm', PHONE, { mustSee: ['.modal [data-x=ok]'] });
   await catcher.click('.modal [data-x=ok]');
   await sleep(300);
   await catcher.click('.arrest');
-  await catcher.waitForSelector('.modal #coin0');
-  await catcher.fill('#coin0', '15');
+  await catcher.waitForSelector('.modal [data-x=ok]');
   await catcher.click('.modal [data-x=ok]');
   await susA.waitForSelector('#scrRoom:not(.hidden)');
   await sleep(300);
-  await capture(catcher, 'c3_catcher_after', WIDE, { noPageScroll: true, mustSee: ['.arrest'] });
+  await capture(catcher, 'c3_catcher_after', PHONE, { mustSee: ['.arrest'] });
 
   // ---- 수사관 A+B ----
   const inv = await open('/investigator', big);
@@ -217,40 +210,43 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await capture(susA, 's8_done', WIDE, { noPageScroll: true, mustSee: ['.big-num'] });
 
   // ---- 현황판 / 스태프 ----
-  // 대기열을 길게 만들어 큰 현황판과 "+N팀 더" 가 보이게
-  for (const t of [['호랑이', '', ''], ['여우', '', ''], ['늑대', '', ''], ['토끼', '', ''], ['곰', '', ''], ['사자', '', '']]) {
-    await lobby.fill('#teamName', t[0]); await lobby.fill('#memA', t[1]); await lobby.fill('#memB', t[2]);
+  // 먼저 대기 2팀일 때: 행 높이가 늘어나지 않는지 확인
+  const board = await open('/board', big);
+  await board.waitForFunction(() => document.querySelectorAll('.bq-item').length === 2);
+  await sleep(300);
+  await capture(board, 'b1_board', WIDE, { noPageScroll: true, mustSee: ['#qTotal', '#queue', '.bq-item', '.bq-wait', '.kpis', '#kRet', '#recent'] });
+  const qHeights = await board.$$eval('.bq-item', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  check(qHeights.length === 2 && qHeights.every((h) => Math.abs(h - qHeights[0]) <= 2) && qHeights[0] >= 50 && qHeights[0] <= 140, '대기 2팀일 때 행 높이가 고정됨 (' + qHeights.join(', ') + 'px)');
+  const qTxt = await board.textContent('#queue');
+  check(qTxt.includes('약') && (qTxt.includes('분') || qTxt.includes('곧 시작')), '현황판 대기열에 예상 대기 시간이 보임');
+  check((await board.textContent('#qTotal')).includes('2팀'), '현황판 상단에 대기 2팀이 보임');
+  const boardTxt = await board.textContent('body');
+  check(!codes.some((c) => boardTxt.includes(c)), '현황판에 참가 코드가 보이지 않음');
+  // 긴 대기열: 앞부분 + "+N팀 더"
+  for (const tm of [['호랑이', '', ''], ['여우', '', ''], ['늑대', '', ''], ['토끼', '', ''], ['곰', '', ''], ['사자', '', ''], ['원숭이', '', '']]) {
+    await lobby.fill('#teamName', tm[0]); await lobby.fill('#memA', tm[1]); await lobby.fill('#memB', tm[2]);
     await lobby.click('#regForm button[type=submit]');
     await sleep(80);
   }
-  await lobby.waitForFunction(() => document.querySelectorAll('.queue-item').length >= 8);
-  const board = await open('/board', big);
-  await board.waitForFunction(() => document.querySelectorAll('.bq-item').length >= 5 && document.querySelectorAll('.bsess').length >= 3);
-  await sleep(300);
-  await capture(board, 'b1_board', WIDE, { noPageScroll: true, mustSee: ['#qTotal', '#queue', '.bq-item', '.bq-wait', '.kpis', '#kRet', '#recent'] });
-  const qTxt = await board.textContent('#queue');
-  check(qTxt.includes('약') && (qTxt.includes('분') || qTxt.includes('곧 시작')), '현황판 대기열에 예상 대기 시간이 보임');
-  check((await board.textContent('#qTotal')).includes('팀'), '현황판 상단에 대기 팀 수가 보임');
-  const boardTxt = await board.textContent('body');
-  check(!codes.some((c) => boardTxt.includes(c)), '현황판에 참가 코드가 보이지 않음');
+  await lobby.waitForFunction(() => document.querySelectorAll('.queue-item').length >= 9);
+  await board.waitForFunction(() => (document.getElementById('qTotal') || {}).textContent && document.getElementById('qTotal').textContent.indexOf('9팀') >= 0);
+  await sleep(200);
+  await capture(board, 'b2_board_long', WIDE, { noPageScroll: true, mustSee: ['#qTotal', '.bq-item', '.bq-more'] });
   const staff = await open('/staff', big);
   await staff.waitForSelector('.links .card img');
   await sleep(300);
   await capture(staff, 'f1_staff', WIDE, { noPageScroll: true, mustSee: ['.links .card:last-child img'] });
 
-  // ---- 로비 (가로·세로) ----
+  // ---- 로비 (데스크톱) ----
   console.log('  … 로비 캡처');
+  await lobby.waitForSelector('#done .done-item');
+  check(!!(await lobby.$('#done .done-item')), '로비에 종료된 팀 블록이 있음');
+  await capture(lobby, 'l1_lobby', DESKTOP, { full: true, mustSee: ['#teamName', '#regForm button[type=submit]'] });
   await lobby.click('#active [data-a=tools]');
   await sleep(200);
-  await capture(lobby, 'l1_lobby', LOBBY, { full: true, mustSee: ['#teamName', '#regForm button[type=submit]'] });
-  // 폰은 터치 기기로 다시
-  const lobbyPhone = await open('/lobby', LOBBY[4], true);
-  await login(lobbyPhone);
-  await lobbyPhone.waitForSelector('#active .sess');
-  await capture(lobbyPhone, 'l2_lobby_phone_top', [LOBBY[4]], { mustSee: ['#teamName'] });
   await lobby.click('.queue-item [data-a=qr]');
   await lobby.waitForSelector('.modal img.qr');
-  await capture(lobby, 'l3_lobby_qr', LOBBY, { mustSee: ['.modal .btn.light'] });
+  await capture(lobby, 'l3_lobby_qr', DESKTOP, { mustSee: ['.modal .btn.light'] });
   await lobby.click('.modal .btn.light');
 
   // 새로고침해도 이어짐

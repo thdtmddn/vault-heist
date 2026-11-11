@@ -3,7 +3,6 @@
   "adminPin": "1234",
   "publicUrl": "",
   "cleanupHours": 6,
-  "defaultCoins": 20,
   "escapeTimeLimitSec": 180,
   "defaultSessionSec": 480,
   "parallelSessions": 1,

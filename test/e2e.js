@@ -16,7 +16,6 @@ const CFG = path.join(TMP, 'config.json');
 const baseCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.json'), 'utf8'));
 baseCfg.adminPin = '1234';
 baseCfg.payoff = { CC: 3, CD: 0, DC: 5, DD: 1 };
-baseCfg.defaultCoins = 20;
 fs.writeFileSync(CFG, JSON.stringify(baseCfg));
 const ENV_PIN = '8642';
 
@@ -164,7 +163,7 @@ async function opList(op) {
   check(S2.suspects[1].name === '용의자 B', '이름 없으면 "용의자 B"');
   const codes = [S1.suspects[0].code, S1.suspects[1].code, S2.suspects[0].code, S2.suspects[1].code];
   check(new Set(codes).size === 4 && codes.every((c) => /^\d{4}$/.test(c)), '용의자별 참가 코드 4개가 모두 다름');
-  r = await emit(lobby, 'op', { action: 'arrest', id: t1.id, coins: 20 });
+  r = await emit(lobby, 'op', { action: 'arrest', id: t1.id });
   check(!r.ok, '시작 전에는 체포 불가');
   check((await emit(lobby, 'op', { action: 'start', id: t1.id })).ok, '1팀 시작 → 방탈출');
   check((await emit(lobby, 'op', { action: 'start', id: t2.id })).ok, '독수리 시작 → 방탈출 (동시에 2세션)');
@@ -190,15 +189,14 @@ async function opList(op) {
   const invS1 = next(inv, 'inv:session', (d) => d.id === t1.id);
   await emit(inv, 'inv:watch', { id: t1.id });
   await invS1;
-  check((await emit(lobby, 'op', { action: 'arrest', id: t1.id, coins: -3 })).ok === false, '음수 코인은 거절');
-  r = await emit(lobby, 'op', { action: 'arrest', id: t1.id, coins: 25 });
-  check(r.ok, '1팀 체포 (자루 코인 25)');
+  r = await emit(lobby, 'op', { action: 'arrest', id: t1.id });
+  check(r.ok, '1팀 체포');
   await emit(lobby, 'op', { action: 'arrest', id: t2.id });
   L = await opList();
   check(L.sessions.every((s) => s.phase === 'interrogation'), '두 조사실 기기가 연결돼 있으면 체포 즉시 심문으로');
   const sv = (s) => { for (let i = s.__log.length - 1; i >= 0; i--) { const p = JSON.parse(s.__log[i]); if (p[0] === 'sus:state') return p[1]; } return null; };
   check(sv(A1).chat.length === 1 && sv(A1).chat[0].from === 'inv', '심문 시작 시 형사의 첫 대사가 자동으로 나옴');
-  check(sv(A1).sackCoins === 25 && sv(B1).sackCoins === 25 && sv(A2).sackCoins === 20, '팀 자루 하나의 코인 수 표시 (안 넣으면 기본값 20)');
+  check(sv(A1).sackCoins == null && sv(A1).coins == null && !JSON.stringify(sv(A1)).includes('sackCoins'), '용의자 화면에 자루 코인 수 없음');
   check(sv(A1).rules && sv(A1).rules.CC === 3 && sv(A1).rules.DC === 5 && sv(A1).rules.CD === 0 && sv(A1).rules.DD === 1, '용의자에게 캔디 보상표 표시');
 
   console.log('\n[5] 채팅 격리');
@@ -265,7 +263,7 @@ async function opList(op) {
   check(v2a.verdict.myPayout === 1 && sv(B2).verdict.myPayout === 1, '독수리 둘 다 배반 → 캔디 1 / 1');
   L = await opList();
   check(L.stats.teams === 2 && L.stats.bothBetray === 1 && L.stats.mixed === 1 && L.stats.cooperate === 1 && L.stats.betray === 3, '누적 통계: 2팀, 둘다배반 1, 엇갈림 1, 협력 1 / 배반 3');
-  check(L.stats.confiscated === 45 && L.stats.candies === 7, '누적: 압수 코인 45, 지급 캔디 7');
+  check(L.stats.candies === 7 && L.stats.confiscated == null, '누적: 지급 캔디 7, 압수 코인 통계 없음');
   // 선택 다시 받기 → 둘 다 협력
   r = await emit(lobby, 'op', { action: 'reopenChoices', id: t2.id });
   check(r.ok, '실수 대비: 선택 다시 받기');
@@ -286,13 +284,16 @@ async function opList(op) {
   check(r.ok, '1팀 종료');
   await sleep(100);
   check(sv(A1).phase === 'done' && sv(A1).verdict.myPayout === 0, '종료 후에도 용의자 화면에 결과 유지');
+  L = await opList();
+  const fin = L.sessions.find((s) => s.id === t1.id);
+  check(fin && fin.phase === 'done' && fin.verdict && fin.verdict.payout[1] === 5, '종료된 팀은 로비 목록에 남고 판결·캔디가 보임');
   const t4 = await emit(lobby, 'op', { action: 'register', teamName: '테스트4' });
   r = await emit(lobby, 'op', { action: 'setPhase', id: t4.id, phase: 'verdict' });
   check(!r.ok, '둘 다 선택 안 했으면 판결로 강제 이동 불가');
   r = await emit(lobby, 'op', { action: 'setPhase', id: t4.id, phase: 'interrogation' });
   L = await opList();
   const s4 = L.sessions.find((s) => s.id === t4.id);
-  check(r.ok && s4.phase === 'interrogation' && s4.coins === baseCfg.defaultCoins && s4.queuePos === -1, '강제로 심문 단계로 (코인은 기본값, 대기열에서 빠짐)');
+  check(r.ok && s4.phase === 'interrogation' && s4.queuePos === -1 && s4.coins == null, '강제로 심문 단계로 (대기열에서 빠짐, 코인 필드 없음)');
   r = await emit(lobby, 'op', { action: 'reset', id: t4.id });
   L = await opList();
   check(r.ok && L.sessions.find((s) => s.id === t4.id).phase === 'waiting' && L.sessions.find((s) => s.id === t4.id).queuePos === 0, '처음부터: 대기열 맨 앞으로');

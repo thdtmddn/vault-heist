@@ -71,7 +71,7 @@
     var s = cur;
     $('dName').textContent = s.teamName;
     $('dBadge').innerHTML = VH.phaseBadge(s.phase);
-    $('dMeta').innerHTML = s.coins != null ? '자루 <span class="coins">' + s.coins + '</span>개 압수' : '';
+    $('dMeta').innerHTML = '';
     $('dSteps').innerHTML = VH.phaseSteps(s.phase);
     var act = '';
     if (s.phase === 'arrest') act += '<span class="muted">기기 둘 다 연결되면 자동 시작</span><button class="btn" data-act="begin">💬 심문 시작</button>';

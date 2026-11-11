@@ -31,7 +31,6 @@
         <div class="kpi mx"><div class="v" id="kMX">0</div><div class="l">🤐🗣️ 엇갈림</div></div>
         <div class="kpi dd"><div class="v" id="kDD">0</div><div class="l">🗣️🗣️ 배반</div></div>
         <div class="kpi"><div class="v coins" id="kRet">0</div><div class="l">🍬 캔디</div></div>
-        <div class="kpi"><div class="v coins" id="kConf">0</div><div class="l">💰 코인</div></div>
       </div>
       <h2>🧾 최근 판결</h2>
       <div id="recent" class="card"></div>
@@ -86,7 +85,6 @@
       var at = s.phaseAt[s.phase];
       var extra = '';
       if (s.verdict) extra = '<div class="bsess-ver">' + [0, 1].map(function (i) { return '<span class="c' + s.verdict.choices[i] + '">' + VH.CHOICE_EMOJI[s.verdict.choices[i]] + ' ' + VH.CHOICE_SHORT[s.verdict.choices[i]] + '</span>'; }).join(' vs ') + '</div>';
-      else if (s.coins != null) extra = '<div class="coins bsess-ver">💰 ' + s.coins + '</div>';
       return '<div class="bsess"><div class="nm">' + esc(s.teamName) + '</div>' + extra +
         '<div class="bsess-right">' + VH.phaseBadge(s.phase) + '<div class="timer" data-at="' + at + '" data-ph="' + s.phase + '">' + VH.elapsed(VH.serverNow() - at) + '</div></div></div>';
     }).join('') : '<div class="card muted center bsess-empty">진행 중인 팀이 없어요</div>';
@@ -95,7 +93,7 @@
     $('teams').textContent = '(' + st.teams + '팀 · ' + tot + '명)';
     $('ratio').innerHTML = tot ? '<div class="c" style="width:' + cp + '%">' + (cp >= 12 ? '🤐 협력 ' + cp + '%' : '') + '</div><div class="d" style="width:' + (100 - cp) + '%">' + (100 - cp >= 12 ? '🗣️ 배반 ' + (100 - cp) + '%' : '') + '</div>' : '<div style="width:100%;color:#9aa3b8">아직 결과가 없어요</div>';
     $('kCC').textContent = st.bothCooperate; $('kMX').textContent = st.mixed; $('kDD').textContent = st.bothBetray;
-    $('kConf').textContent = st.confiscated; $('kRet').textContent = st.candies;
+    $('kRet').textContent = st.candies;
     var recent = (st.recent || []).slice(0, 4);
     $('recent').innerHTML = recent.length ? recent.map(function (r) {
       return '<div class="recent-row"><span>' + esc(r.team) + ' <span class="muted">' + VH.clock(r.at) + '</span></span><span>' +

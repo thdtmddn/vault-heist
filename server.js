@@ -29,7 +29,6 @@ const DEFAULT_CONFIG = {
   adminPin: '1234',
   publicUrl: '',
   cleanupHours: 6,
-  defaultCoins: 20,
   escapeTimeLimitSec: 180,
   defaultSessionSec: 480,
   parallelSessions: 1,
@@ -63,7 +62,6 @@ function loadConfig() {
     adminPin: String(c.adminPin == null ? '1234' : c.adminPin),
     publicUrl: String(c.publicUrl || '').trim().replace(/\/+$/, ''),
     cleanupHours: Math.max(0.1, Number(c.cleanupHours) || 6),
-    defaultCoins: toInt(c.defaultCoins, 20, 0, 9999),
     escapeTimeLimitSec: toInt(c.escapeTimeLimitSec, 180, 0, 3600),
     defaultSessionSec: toInt(c.defaultSessionSec, 480, 60, 3600),
     parallelSessions: toInt(c.parallelSessions, 1, 1, 8),
@@ -182,7 +180,6 @@ function createSession(teamName, members) {
     phaseAt: { waiting: t },
     createdAt: t,
     updatedAt: t,
-    coins: null,
     payoff: null,
     suspects: [{ code: newCode(), token: null }, { code: null, token: null }],
     chats: [[], []],
@@ -235,10 +232,10 @@ function makeVerdict(s) {
   const r = computePayout(s.choices, s.payoff);
   const t = now();
   const start = waitEst.startedAt(s);
-  s.verdict = Object.assign({ choices: s.choices.slice(), coins: s.coins, at: t }, r);
+  s.verdict = Object.assign({ choices: s.choices.slice(), at: t }, r);
   removeResult(s);
   state.results.push({
-    sid: s.id, team: s.teamName, choices: s.choices.slice(), coins: s.coins || 0,
+    sid: s.id, team: s.teamName, choices: s.choices.slice(),
     payout: r.payout.slice(), outcome: r.outcome, at: t,
     startedAt: start || null,
     durationMs: start && t > start ? t - start : null,
@@ -265,7 +262,6 @@ function suspectView(s, seat) {
     teamName: s.teamName,
     myName: suspectName(s, seat),
     phase: s.phase,
-    sackCoins: s.coins,
     chat: s.chats[seat].map((m) => ({ id: m.id, from: m.from, text: m.text, t: m.t })),
     myChoice: s.choices[seat],
     canChoose: s.phase === 'interrogation' && !s.choices[seat],
@@ -293,7 +289,7 @@ function suspectView(s, seat) {
 function opSummary(s) {
   return {
     id: s.id, no: s.no, teamName: s.teamName, members: s.members, phase: s.phase, phaseAt: s.phaseAt,
-    createdAt: s.createdAt, coins: s.coins,
+    createdAt: s.createdAt,
     queuePos: state.queue.indexOf(s.id),
     suspects: [0, 1].map((seat) => ({
       label: SEAT_LABEL[seat], name: suspectName(s, seat), code: s.suspects[seat].code,
@@ -313,14 +309,13 @@ function investigatorView(s) {
 }
 
 function computeStats() {
-  const st = { teams: 0, cooperate: 0, betray: 0, bothCooperate: 0, bothBetray: 0, mixed: 0, confiscated: 0, candies: 0, recent: [] };
+  const st = { teams: 0, cooperate: 0, betray: 0, bothCooperate: 0, bothBetray: 0, mixed: 0, candies: 0, recent: [] };
   state.results.forEach((r) => {
     st.teams++;
     r.choices.forEach((c) => (c === 'C' ? st.cooperate++ : st.betray++));
     if (r.outcome === 'CC') st.bothCooperate++;
     else if (r.outcome === 'DD') st.bothBetray++;
     else st.mixed++;
-    st.confiscated += r.coins || 0;
     st.candies += r.payout[0] + r.payout[1];
   });
   st.recent = state.results.slice(-8).reverse().map((r) => ({ team: r.team, choices: r.choices, payout: r.payout, outcome: r.outcome, at: r.at }));
@@ -351,7 +346,7 @@ function boardData() {
     avgSessionSec: Math.round(est.avgMs / 1000),
     parallelSessions: est.capacity,
     sessions: sessions.map((s) => ({
-      id: s.id, no: s.no, teamName: s.teamName, phase: s.phase, phaseAt: s.phaseAt, coins: s.coins,
+      id: s.id, no: s.no, teamName: s.teamName, phase: s.phase, phaseAt: s.phaseAt,
       queuePos: state.queue.indexOf(s.id),
       waitMs: s.phase === 'waiting' ? waitById[s.id] : null,
       verdict: s.verdict && (s.phase === 'verdict' || s.phase === 'done') ? { choices: s.verdict.choices, payout: s.verdict.payout, outcome: s.verdict.outcome } : null,
@@ -365,7 +360,6 @@ function opsList() {
     sessions: sortedSessions().map(opSummary),
     stats: computeStats(),
     config: {
-      defaultCoins: config.defaultCoins,
       escapeTimeLimitSec: config.escapeTimeLimitSec,
       payoff: config.payoff,
       pressureLines: config.pressureLines,
@@ -523,21 +517,9 @@ const OPS = {
   },
   arrest(m, s) {
     if (s.phase !== 'escape') return '방탈출 중인 팀만 체포할 수 있어요.';
-    const c = parseCoins(m.coins);
-    if (typeof c === 'string') return c;
-    s.coins = c;
     s.payoff = Object.assign({}, config.payoff);
     setPhase(s, 'arrest');
     maybeAutoInterrogate(s);
-    return null;
-  },
-  setCoins(m, s) {
-    if (s.verdict) return '판결이 난 뒤에는 코인 수를 바꿀 수 없어요. 먼저 "선택 다시 받기"를 하세요.';
-    const c = parseCoins(m.coins);
-    if (typeof c === 'string') return c;
-    s.coins = c;
-    if (!s.payoff) s.payoff = Object.assign({}, config.payoff);
-    s.updatedAt = now();
     return null;
   },
   beginInterrogation(m, s) {
@@ -568,12 +550,10 @@ const OPS = {
       return null;
     }
     if (PHASES.indexOf(p) < PHASES.indexOf('verdict')) clearInterrogation(s);
-    if (p !== 'waiting' && PHASES.indexOf(p) >= PHASES.indexOf('arrest') && !s.coins) {
-      s.coins = config.defaultCoins;
+    if (p !== 'waiting' && PHASES.indexOf(p) >= PHASES.indexOf('arrest') && !s.payoff) {
       s.payoff = Object.assign({}, config.payoff);
     }
     if (p === 'waiting') {
-      s.coins = null;
       s.payoff = null;
       if (state.queue.indexOf(s.id) < 0) state.queue.unshift(s.id);
     } else {
@@ -582,11 +562,10 @@ const OPS = {
     setPhase(s, p);
     return null;
   },
-  // 처음 상태로 되돌리기 (채팅·선택·코인 모두 지우고 대기열 맨 앞으로)
+  // 처음 상태로 되돌리기 (채팅·선택 모두 지우고 대기열 맨 앞으로)
   reset(m, s) {
     clearInterrogation(s);
     s.chats = [[], []];
-    s.coins = null;
     s.payoff = null;
     s.phaseAt = {};
     if (state.queue.indexOf(s.id) < 0) state.queue.unshift(s.id);
@@ -621,14 +600,6 @@ const OPS = {
     return null;
   },
 };
-// 팀 자루 하나에 든 골드코인 (기록·현황판용, 보상과는 별개). 비우면 기본값
-function parseCoins(c) {
-  if (Array.isArray(c)) c = c[0]; // 예전 형식 호환
-  if (c === undefined || c === null || c === '') return config.defaultCoins;
-  const n = Math.round(Number(c));
-  if (!Number.isFinite(n) || n < 0 || n > 9999) return '코인 수는 0~9999 사이 정수로 입력하세요.';
-  return n;
-}
 
 io.on('connection', (socket) => {
   const reply = (cb, data) => typeof cb === 'function' && cb(data);

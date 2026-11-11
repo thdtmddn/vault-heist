@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko" class="wide">
+<html lang="ko" class="catcher">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,24 +7,20 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="shell">
+<div class="catch-wrap">
   <div class="topbar">
     <h1>🚓 잡는 사람</h1>
     <div class="right">
       <a class="btn small ghost" href="/lobby">로비</a>
-      <a class="btn small ghost" href="/investigator">수사관</a>
       <button class="btn small light" id="logout" type="button">로그아웃</button>
     </div>
   </div>
-  <div class="shell-body catch-grid">
-    <div>
-      <h2>🔐 방탈출 중 <span class="muted" style="font-size:.8em;font-weight:600">— 금고가 열리고 환호하는 순간 <b>🚨 체포</b> → 자루 코인 수 확인</span></h2>
-      <div id="escape" class="escape-list scroll-y"></div>
-    </div>
-    <div>
-      <h2>🚨 최근 체포</h2>
-      <div id="arrested" class="scroll-y"></div>
-    </div>
+  <div class="catch-body">
+    <h2>🔐 방탈출 중</h2>
+    <p class="muted catch-hint">금고가 열리는 순간 <b>🚨 체포</b>를 누르세요.</p>
+    <div id="escape" class="escape-list"></div>
+    <h2>🚨 최근 체포</h2>
+    <div id="arrested"></div>
   </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>

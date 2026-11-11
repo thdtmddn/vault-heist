@@ -55,14 +55,19 @@
         '</div></div>';
     }).join('') : '<p class="muted">대기 중인 팀이 없어요.</p>';
 
-    var act = data.sessions.filter(function (s) { return s.phase !== 'waiting'; });
-    act.sort(function (a, b) { return (a.phase === 'done') - (b.phase === 'done') || a.no - b.no; });
+    var act = data.sessions.filter(function (s) { return s.phase !== 'waiting' && s.phase !== 'done'; });
+    act.sort(function (a, b) { return a.no - b.no; });
     $('active').innerHTML = act.length ? act.map(card).join('') : '<p class="muted">진행 중인 세션이 없어요. 대기열에서 ▶ 시작을 누르세요.</p>';
+
+    var done = data.sessions.filter(function (s) { return s.phase === 'done'; });
+    done.sort(function (a, b) { return (b.phaseAt.done || 0) - (a.phaseAt.done || 0); });
+    $('doneCount').textContent = done.length ? done.length + '팀' : '';
+    $('done').innerHTML = done.length ? done.map(doneRow).join('') : '<p class="muted">아직 종료된 팀이 없어요.</p>';
 
     var st = data.stats;
     var tot = st.cooperate + st.betray;
     $('stats').innerHTML = '판결 난 팀 <b>' + st.teams + '</b> · 협력 ' + (tot ? Math.round(st.cooperate / tot * 100) : 0) + '% / 배반 ' + (tot ? Math.round(st.betray / tot * 100) : 0) + '%<br>' +
-      '둘 다 협력 ' + st.bothCooperate + ' · 둘 다 배반 ' + st.bothBetray + ' · 엇갈림 ' + st.mixed + '<br>지급 캔디 🍬' + st.candies + '개 · 압수 코인 ' + st.confiscated + '개';
+      '둘 다 협력 ' + st.bothCooperate + ' · 둘 다 배반 ' + st.bothBetray + ' · 엇갈림 ' + st.mixed + '<br>지급 캔디 🍬' + st.candies + '개';
   }
 
   function card(s) {
@@ -86,14 +91,24 @@
       '<label>단계 강제 변경 (실수했을 때)</label><div class="sess-actions" style="margin-top:0">' +
       VH.PHASES.map(function (p) { return '<button class="btn small ' + (p === s.phase ? 'gold' : 'light') + '" data-a="phase" data-ph="' + p + '" data-id="' + s.id + '">' + VH.PHASE_KO[p] + '</button>'; }).join('') +
       '</div><div class="sess-actions">' +
-      (s.coins != null ? '<button class="btn small light" data-a="coins" data-id="' + s.id + '">코인 수정</button>' : '') +
       (s.phase === 'interrogation' || s.phase === 'verdict' || s.phase === 'done' ? '<button class="btn small light" data-a="reopen" data-id="' + s.id + '">선택 다시 받기</button>' : '') +
       '<button class="btn small light" data-a="reset" data-id="' + s.id + '">처음부터 (대기열로)</button>' +
       '<button class="btn small red" data-a="remove" data-id="' + s.id + '">삭제</button></div></div>' : '';
     return '<div class="sess"><div class="sess-head"><span class="sess-name">' + esc(s.teamName) + '</span>' + VH.phaseBadge(s.phase) + '</div>' +
-      '<div class="sess-meta">' + members(s) + ' · 이 단계 ' + phaseTimer(s) + (s.coins != null ? ' · 자루 <span class="coins">' + s.coins + '</span>개 압수' : '') + '</div>' +
+      '<div class="sess-meta">' + members(s) + ' · 이 단계 ' + phaseTimer(s) + '</div>' +
       VH.phaseSteps(s.phase) + sus + vd +
       '<div class="sess-actions">' + main + '<button class="btn light" data-a="tools" data-id="' + s.id + '">⚙️ 관리</button></div>' + tools + '</div>';
+  }
+
+  function doneRow(s) {
+    var when = s.phaseAt && s.phaseAt.done ? VH.clock(s.phaseAt.done) : '';
+    var res = '';
+    if (s.verdict) {
+      res = '<span class="done-res">⚖️ ' + VH.OUTCOME_KO[s.verdict.outcome] + ' · A ' + VH.CHOICE_SHORT[s.verdict.choices[0]] + ' 🍬' + s.verdict.payout[0] + ' / B ' + VH.CHOICE_SHORT[s.verdict.choices[1]] + ' 🍬' + s.verdict.payout[1] + '</span>';
+    }
+    return '<div class="done-item"><div class="done-main"><div class="nm">' + esc(s.teamName) + '</div>' +
+      '<div class="done-meta"><span class="muted">' + members(s) + (when ? ' · 종료 ' + when : '') + '</span>' + res + '</div></div>' +
+      '<div class="btns"><button class="btn small light" data-a="remove" data-id="' + s.id + '">목록에서 지우기</button></div></div>';
   }
 
   function find(id) { for (var i = 0; i < data.sessions.length; i++) if (data.sessions[i].id === id) return data.sessions[i]; return null; }
@@ -110,12 +125,11 @@
     else if (a === 'qr') VH.showBothQR(s);
     else if (a === 'qr1') VH.showQR('용의자 ' + s.suspects[seat].label + ' 조사실', s.suspects[seat].code, s.teamName + ' · ' + s.suspects[seat].name);
     else if (a === 'unbind') VH.confirmBox('용의자 ' + s.suspects[seat].label + ' 기기 연결을 해제할까요?<br><span class="muted" style="font-size:17px">새 기기에서 코드를 다시 입력하면 이어서 진행돼요.</span>', '해제', 'red', function () { VH.op(socket, 'unbind', { id: id, seat: seat }); });
-    else if (a === 'arrest') VH.coinDialog('🚨 ' + s.teamName + ' 체포', data.config.defaultCoins, '체포', function (c) { VH.op(socket, 'arrest', { id: id, coins: c }); });
-    else if (a === 'coins') VH.coinDialog('코인 수정 · ' + s.teamName, s.coins, '저장', function (c) { VH.op(socket, 'setCoins', { id: id, coins: c }); });
+    else if (a === 'arrest') VH.confirmBox('<b>' + esc(s.teamName) + '</b>을(를) 체포할까요?', '체포', 'red', function () { VH.op(socket, 'arrest', { id: id }); });
     else if (a === 'begin') VH.op(socket, 'beginInterrogation', { id: id });
     else if (a === 'finish') VH.op(socket, 'finish', { id: id });
     else if (a === 'reopen') VH.confirmBox('두 사람의 선택과 판결을 지우고<br>다시 고르게 할까요?', '다시 받기', 'red', function () { VH.op(socket, 'reopenChoices', { id: id }); });
-    else if (a === 'reset') VH.confirmBox('<b>' + esc(s.teamName) + '</b>의 채팅·선택·코인을 모두 지우고<br>대기열 맨 앞으로 보낼까요?', '처음부터', 'red', function () { VH.op(socket, 'reset', { id: id }); });
+    else if (a === 'reset') VH.confirmBox('<b>' + esc(s.teamName) + '</b>의 채팅·선택을 모두 지우고<br>대기열 맨 앞으로 보낼까요?', '처음부터', 'red', function () { VH.op(socket, 'reset', { id: id }); });
     else if (a === 'phase') VH.confirmBox('<b>' + esc(s.teamName) + '</b>을(를)<br>\'' + VH.PHASE_KO[b.getAttribute('data-ph')] + '\' 단계로 바꿀까요?', '바꾸기', 'red', function () { VH.op(socket, 'setPhase', { id: id, phase: b.getAttribute('data-ph') }); });
     else if (a === 'tools') { openTools[id] = !openTools[id]; render(); }
   });

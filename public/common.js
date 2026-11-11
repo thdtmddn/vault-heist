@@ -180,31 +180,7 @@
     return ov;
   }
 
-  // 압수 코인 입력 창 (팀 자루 1개, 기록용 · 보상과는 별개)
-  function coinDialog(title, def, okText, onOk) {
-    var ov = document.createElement('div');
-    ov.className = 'modal';
-    ov.innerHTML = '<div class="card modal-card coin-card center"><h2>' + esc(title) + '</h2>' +
-      '<p class="muted" style="margin:0 0 .6rem">자루에 든 골드코인 수 (기록용 · 비워 두면 기본값)</p>' +
-      '<div class="stepper"><button class="btn light" type="button" data-d="-1">−</button>' +
-      '<input class="big" id="coin0" type="number" inputmode="numeric" min="0" max="9999" value="' + def + '">' +
-      '<button class="btn light" type="button" data-d="1">+</button></div>' +
-      '<div class="row2" style="margin-top:1rem"><button class="btn light" type="button" data-x="no">취소</button>' +
-      '<button class="btn red" type="button" data-x="ok">' + esc(okText) + '</button></div></div>';
-    document.body.appendChild(ov);
-    var inp = ov.querySelector('#coin0');
-    function val() { var n = Math.round(Number(inp.value)); return isFinite(n) && n >= 0 ? n : 0; }
-    var steps = ov.querySelectorAll('[data-d]');
-    for (var k = 0; k < steps.length; k++) {
-      steps[k].addEventListener('click', function (e) { inp.value = Math.max(0, val() + Number(e.currentTarget.getAttribute('data-d'))); });
-    }
-    function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
-    ov.querySelector('[data-x=no]').addEventListener('click', close);
-    ov.querySelector('[data-x=ok]').addEventListener('click', function () { var c = inp.value.trim() === '' ? null : val(); close(); onOk(c); });
-  }
-
   window.VH = {
-    coinDialog: coinDialog,
     LS: LS, PHASES: PHASES, PHASE_KO: PHASE_KO, PHASE_EMOJI: PHASE_EMOJI, CHOICE_KO: CHOICE_KO, CHOICE_SHORT: CHOICE_SHORT,
     CHOICE_EMOJI: CHOICE_EMOJI, OUTCOME_KO: OUTCOME_KO,
     esc: esc, $: $, elapsed: elapsed, clock: clock, toast: toast, phaseSteps: phaseSteps, phaseBadge: phaseBadge,

@@ -20,9 +20,9 @@ let fails = 0; const check = (c, m) => { console.log((c ? '  ✔ ' : '  ✘ ') +
   const jb = await emit(B, 'sus:join', { code: s.suspects[1].code });
   check(ja.ok && jb.ok, '용의자 A, B 코드로 접속');
   const intoA = next(A, 'sus:state', (v) => v.phase === 'interrogation');
-  check((await emit(op, 'op', { action: 'arrest', id: reg.id, coins: 20 })).ok, '체포 (자루 20)');
+  check((await emit(op, 'op', { action: 'arrest', id: reg.id })).ok, '체포');
   const va = await intoA;
-  check(va.sackCoins === 20 && va.rules.CC === 3, '심문 시작 (자루 20, 보상표 3/0/5/1)');
+  check(va.rules && va.rules.CC === 3, '심문 시작 (보상표 3/0/5/1)');
   const gotA = next(A, 'sus:state', (v) => v.chat.some((m) => m.text === 'LIVE 압박'));
   await emit(op, 'op', { action: 'send', id: reg.id, seat: 0, text: 'LIVE 압박' });
   await gotA;
