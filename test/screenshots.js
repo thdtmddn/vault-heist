@@ -190,9 +190,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await inv2.waitForSelector('#log1');
   await capture(inv2, 'i3_investigator_B_only', WIDE, { noPageScroll: true, mustSee: ['#in1', '#cols .quick [data-q="9"]'] });
 
-  // ---- 판결 ----
+  // ---- 둘 다 선택 → 공개 대기 (바로 판결이 나지 않음) ----
   await susB.click('.choice.D');
   await susB.click('.modal [data-x=ok]');
+  await susA.waitForSelector('.await-reveal');
+  await susB.waitForSelector('.await-reveal');
+  check(!(await susA.$('.verdict-hero')) && !(await susB.$('.verdict-hero')), '공개 전에는 용의자 화면에 판결이 안 뜸');
+  await inv.waitForSelector('[data-act=reveal]');
+  await capture(susA, 's5b_waiting_reveal', WIDE, { noPageScroll: true, mustSee: ['.await-reveal'] });
+  await capture(inv, 'i5_investigator_reveal', WIDE, { noPageScroll: true, mustSee: ['[data-act=reveal]', '.reveal-hint'] });
+
+  // ---- 판결 (수사관이 결과 공개) ----
+  await inv.click('[data-act=reveal]');
   await susA.waitForSelector('.verdict-hero');
   await susB.waitForSelector('.verdict-hero');
   check((await susA.textContent('.big-num')).trim() === '0' && (await susB.textContent('.big-num')).trim() === '5', '판결: A 협력 캔디 0 / B 배반 캔디 5');
@@ -202,6 +211,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await capture(inv, 'i4_investigator_verdict', WIDE, { noPageScroll: true, mustSee: ['#dVerdict', '#in0'] });
   await susA2.click('.choice.D'); await susA2.click('.modal [data-x=ok]');
   await susB2.click('.choice.D'); await susB2.click('.modal [data-x=ok]');
+  await susB2.waitForSelector('.await-reveal');
+  await inv2.waitForSelector('[data-act=reveal]');
+  await inv2.click('[data-act=reveal]'); // A만/B만 모드에서도 공개 가능
   await susB2.waitForSelector('.verdict-hero');
   check((await susA2.textContent('.big-num')).trim() === '1' && (await susB2.textContent('.big-num')).trim() === '1', '판결: 둘 다 배반 → 캔디 1 / 1');
   await lobby.click('#active [data-a=finish]');

@@ -74,7 +74,10 @@
     var main = '';
     if (s.phase === 'escape') main = '<button class="btn red" data-a="arrest" data-id="' + s.id + '">🚨 체포</button>';
     else if (s.phase === 'arrest') main = '<button class="btn" data-a="begin" data-id="' + s.id + '">💬 심문 시작</button>';
-    else if (s.phase === 'interrogation') main = '<a class="btn" href="/investigator?id=' + s.id + '">💬 수사관 화면</a>';
+    else if (s.phase === 'interrogation') {
+      if (s.awaitingReveal) main += '<button class="btn gold" data-a="reveal" data-id="' + s.id + '">📣 결과 공개</button>';
+      main += '<a class="btn" href="/investigator?id=' + s.id + '">💬 수사관 화면</a>';
+    }
     else if (s.phase === 'verdict') main = '<button class="btn green" data-a="finish" data-id="' + s.id + '">🏁 종료 (캔디 지급 완료)</button>';
     else if (s.phase === 'done') main = '<button class="btn light" data-a="remove" data-id="' + s.id + '">목록에서 지우기</button>';
     var sus = s.suspects.map(function (u, i) {
@@ -91,10 +94,12 @@
       '<label>단계 강제 변경 (실수했을 때)</label><div class="sess-actions" style="margin-top:0">' +
       VH.PHASES.map(function (p) { return '<button class="btn small ' + (p === s.phase ? 'gold' : 'light') + '" data-a="phase" data-ph="' + p + '" data-id="' + s.id + '">' + VH.PHASE_KO[p] + '</button>'; }).join('') +
       '</div><div class="sess-actions">' +
+      (s.awaitingReveal ? '<button class="btn small gold" data-a="reveal" data-id="' + s.id + '">결과 공개</button>' : '') +
       (s.phase === 'interrogation' || s.phase === 'verdict' || s.phase === 'done' ? '<button class="btn small light" data-a="reopen" data-id="' + s.id + '">선택 다시 받기</button>' : '') +
       '<button class="btn small light" data-a="reset" data-id="' + s.id + '">처음부터 (대기열로)</button>' +
       '<button class="btn small red" data-a="remove" data-id="' + s.id + '">삭제</button></div></div>' : '';
-    return '<div class="sess"><div class="sess-head"><span class="sess-name">' + esc(s.teamName) + '</span>' + VH.phaseBadge(s.phase) + '</div>' +
+    return '<div class="sess"><div class="sess-head"><span class="sess-name">' + esc(s.teamName) + '</span>' + VH.phaseBadge(s.phase) +
+      (s.awaitingReveal ? ' <span class="badge ph-ready">📢 공개 대기</span>' : '') + '</div>' +
       '<div class="sess-meta">' + members(s) + ' · 이 단계 ' + phaseTimer(s) + '</div>' +
       VH.phaseSteps(s.phase) + sus + vd +
       '<div class="sess-actions">' + main + '<button class="btn light" data-a="tools" data-id="' + s.id + '">⚙️ 관리</button></div>' + tools + '</div>';
@@ -127,6 +132,7 @@
     else if (a === 'unbind') VH.confirmBox('용의자 ' + s.suspects[seat].label + ' 기기 연결을 해제할까요?<br><span class="muted" style="font-size:17px">새 기기에서 코드를 다시 입력하면 이어서 진행돼요.</span>', '해제', 'red', function () { VH.op(socket, 'unbind', { id: id, seat: seat }); });
     else if (a === 'arrest') VH.confirmBox('<b>' + esc(s.teamName) + '</b>을(를) 체포할까요?', '체포', 'red', function () { VH.op(socket, 'arrest', { id: id }); });
     else if (a === 'begin') VH.op(socket, 'beginInterrogation', { id: id });
+    else if (a === 'reveal') VH.op(socket, 'reveal', { id: id });
     else if (a === 'finish') VH.op(socket, 'finish', { id: id });
     else if (a === 'reopen') VH.confirmBox('두 사람의 선택과 판결을 지우고<br>다시 고르게 할까요?', '다시 받기', 'red', function () { VH.op(socket, 'reopenChoices', { id: id }); });
     else if (a === 'reset') VH.confirmBox('<b>' + esc(s.teamName) + '</b>의 채팅·선택을 모두 지우고<br>대기열 맨 앞으로 보낼까요?', '처음부터', 'red', function () { VH.op(socket, 'reset', { id: id }); });

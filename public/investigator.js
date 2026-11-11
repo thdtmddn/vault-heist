@@ -33,8 +33,8 @@
     var esc1 = list.sessions.filter(function (s) { return s.phase === 'escape'; });
     $('sessTabs').innerHTML = (ss.length ? ss.map(function (s) {
       var waiting = s.suspects.filter(function (u) { return !u.chosen; }).length;
-      return '<button class="btn small ' + (s.id === curId ? 'on' : 'light') + '" data-sid="' + s.id + '">' + esc(s.teamName) + ' · ' + VH.PHASE_KO[s.phase] +
-        (s.phase === 'interrogation' ? ' (' + (2 - waiting) + '/2 선택)' : '') + '</button>';
+      return '<button class="btn small ' + (s.id === curId ? 'on' : 'light') + '" data-sid="' + s.id + '">' + esc(s.teamName) + ' · ' +
+        (s.awaitingReveal ? '공개 대기' : VH.PHASE_KO[s.phase] + (s.phase === 'interrogation' ? ' (' + (2 - waiting) + '/2 선택)' : '')) + '</button>';
     }).join('') : '<span class="muted">체포된 팀이 없어요.</span>') +
       (esc1.length ? ' <span class="muted" style="margin-left:8px">방탈출 중: ' + esc1.map(function (s) { return esc(s.teamName); }).join(', ') + '</span>' : '');
   }
@@ -70,11 +70,12 @@
     $('detail').classList.remove('hidden');
     var s = cur;
     $('dName').textContent = s.teamName;
-    $('dBadge').innerHTML = VH.phaseBadge(s.phase);
-    $('dMeta').innerHTML = '';
+    $('dBadge').innerHTML = VH.phaseBadge(s.phase) + (s.awaitingReveal ? ' <span class="badge ph-ready">📢 공개 대기</span>' : '');
+    $('dMeta').innerHTML = s.awaitingReveal ? '<span class="reveal-hint">두 사람 모두 선택했습니다. 결과를 공개하세요.</span>' : '';
     $('dSteps').innerHTML = VH.phaseSteps(s.phase);
     var act = '';
     if (s.phase === 'arrest') act += '<span class="muted">기기 둘 다 연결되면 자동 시작</span><button class="btn" data-act="begin">💬 심문 시작</button>';
+    if (s.awaitingReveal) act += '<button class="btn gold reveal" data-act="reveal">📣 결과 공개</button>';
     if (s.phase === 'verdict') act += '<button class="btn green" data-act="finish">🏁 종료 (캔디 지급 완료)</button>';
     if (s.phase === 'interrogation' || s.phase === 'verdict') act += '<button class="btn light" data-act="reopen">선택 다시 받기</button>';
     $('dActions').innerHTML = act;
@@ -141,6 +142,7 @@
     if (b && cur) {
       var a = b.getAttribute('data-act');
       if (a === 'begin') VH.op(socket, 'beginInterrogation', { id: curId });
+      else if (a === 'reveal') VH.op(socket, 'reveal', { id: curId });
       else if (a === 'finish') VH.op(socket, 'finish', { id: curId });
       else if (a === 'reopen') VH.confirmBox('두 사람의 선택과 판결을 지우고<br>다시 고르게 할까요?', '다시 받기', 'red', function () { VH.op(socket, 'reopenChoices', { id: curId }); });
     }

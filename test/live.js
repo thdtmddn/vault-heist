@@ -30,10 +30,14 @@ let fails = 0; const check = (c, m) => { console.log((c ? '  ✔ ' : '  ✘ ') +
   await emit(B, 'sus:send', { text: 'LIVE 답장 B' });
   await new Promise((r) => setTimeout(r, 500));
   check(!bLog.join('').includes('LIVE 답장 B'), 'A는 B의 채팅을 받지 않음');
-  const vA = next(A, 'sus:state', (v) => v.phase === 'verdict');
-  const vB = next(B, 'sus:state', (v) => v.phase === 'verdict');
+  const waitA = next(A, 'sus:state', (v) => v.awaitingReveal);
   await emit(A, 'sus:choose', { choice: 'C' });
   await emit(B, 'sus:choose', { choice: 'D' });
+  const wa = await waitA;
+  check(wa.awaitingReveal && !wa.verdict, '둘 다 골라도 공개 전에는 결과가 안 나옴');
+  const vA = next(A, 'sus:state', (v) => v.phase === 'verdict');
+  const vB = next(B, 'sus:state', (v) => v.phase === 'verdict');
+  check((await emit(op, 'op', { action: 'reveal', id: reg.id })).ok, '결과 공개');
   const [ra, rb] = await Promise.all([vA, vB]);
   check(ra.verdict.myPayout === 0 && rb.verdict.myPayout === 5, '판결: A 협력 캔디 0 / B 배반 캔디 5');
   check((await emit(op, 'op', { action: 'remove', id: reg.id })).ok, '테스트 세션 삭제');

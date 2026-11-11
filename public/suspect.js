@@ -109,6 +109,9 @@
           '<button class="choice C" type="button" data-c="C"><span class="emo">🤐</span>협력<small>입 다물기</small></button>' +
           '<button class="choice D" type="button" data-c="D"><span class="emo">🗣️</span>배반<small>동료 불기</small></button>' +
           '</div><p class="muted center" style="margin-bottom:0">한 번 고르면 바꿀 수 없어요</p></div>';
+      } else if (v.awaitingReveal) {
+        h += '<div class="locked await-reveal">✅ 진술 완료<br><span style="font-size:18px;font-weight:600">' + VH.CHOICE_EMOJI[v.myChoice] + ' ' + VH.CHOICE_KO[v.myChoice] +
+          '</span><br><span class="muted" style="font-size:17px;font-weight:600">수사관이 결과를 공개할 때까지 기다려 주세요</span></div>';
       } else {
         h += '<div class="locked">✅ 진술 완료<br><span style="font-size:18px;font-weight:600">' + VH.CHOICE_EMOJI[v.myChoice] + ' ' + VH.CHOICE_KO[v.myChoice] +
           '</span><br><span class="muted" style="font-size:17px;font-weight:600">판결을 기다리는 중…</span></div>';

@@ -251,6 +251,13 @@ function maybeAutoInterrogate(s) {
   return false;
 }
 
+function isAwaitingReveal(s) {
+  return s.phase === 'interrogation' && !!s.choices[0] && !!s.choices[1] && !s.verdict;
+}
+function revealedVerdict(s) {
+  return s.verdict && (s.phase === 'verdict' || s.phase === 'done') ? s.verdict : null;
+}
+
 // ---------- 화면별로 보낼 데이터 ----------
 // 용의자 화면: 자기 채팅·자기 선택만. 상대의 채팅/선택/선택 여부는 판결 전까지 절대 넣지 않는다.
 function suspectView(s, seat) {
@@ -266,6 +273,7 @@ function suspectView(s, seat) {
     myChoice: s.choices[seat],
     canChoose: s.phase === 'interrogation' && !s.choices[seat],
     canChat: s.phase === 'arrest' || s.phase === 'interrogation' || s.phase === 'verdict',
+    awaitingReveal: isAwaitingReveal(s),
     rules: null,
     verdict: null,
   };
@@ -296,15 +304,16 @@ function opSummary(s) {
       joined: !!s.suspects[seat].token, connected: isConnected(s, seat), chosen: !!s.choices[seat],
       msgs: s.chats[seat].length,
     })),
-    verdict: s.verdict,
+    verdict: revealedVerdict(s),
+    awaitingReveal: isAwaitingReveal(s),
   };
 }
-// 수사관 상세: 두 채팅 모두 + 선택 '여부'만 (판결 전에는 무엇을 골랐는지 숨김)
+// 수사관 상세: 두 채팅 모두 + 선택 '여부'만 (공개 전에는 무엇을 골랐는지 숨김)
 function investigatorView(s) {
   const v = opSummary(s);
   v.chats = s.chats;
   v.payoff = s.payoff || config.payoff;
-  v.verdict = s.verdict && (s.phase === 'verdict' || s.phase === 'done') ? s.verdict : null;
+  v.verdict = revealedVerdict(s);
   return v;
 }
 
@@ -349,7 +358,8 @@ function boardData() {
       id: s.id, no: s.no, teamName: s.teamName, phase: s.phase, phaseAt: s.phaseAt,
       queuePos: state.queue.indexOf(s.id),
       waitMs: s.phase === 'waiting' ? waitById[s.id] : null,
-      verdict: s.verdict && (s.phase === 'verdict' || s.phase === 'done') ? { choices: s.verdict.choices, payout: s.verdict.payout, outcome: s.verdict.outcome } : null,
+      awaitingReveal: isAwaitingReveal(s),
+      verdict: revealedVerdict(s) ? { choices: s.verdict.choices, payout: s.verdict.payout, outcome: s.verdict.outcome } : null,
     })),
     stats: computeStats(),
   };
@@ -532,6 +542,14 @@ const OPS = {
     setPhase(s, 'done');
     return null;
   },
+  // 두 사람이 모두 고른 뒤, 수사관(또는 로비)이 결과를 공개
+  reveal(m, s) {
+    if (revealedVerdict(s)) return null; // 이미 공개됨 (한 번 더 눌러도 안전)
+    if (s.phase !== 'interrogation') return '심문 중에만 결과를 공개할 수 있어요.';
+    if (!(s.choices[0] && s.choices[1])) return '두 사람이 모두 선택한 뒤에 공개할 수 있어요.';
+    makeVerdict(s);
+    return null;
+  },
   reopenChoices(m, s) {
     if (s.phase !== 'interrogation' && s.phase !== 'verdict' && s.phase !== 'done') return '심문/판결 단계에서만 쓸 수 있어요.';
     clearInterrogation(s);
@@ -708,7 +726,6 @@ io.on('connection', (socket) => {
     s.choices[seat] = c;
     s.choiceAt[seat] = now();
     s.updatedAt = now();
-    if (s.choices[0] && s.choices[1]) makeVerdict(s);
     changed(s);
     reply(cb, { ok: true });
   });

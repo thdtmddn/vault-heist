@@ -79,6 +79,7 @@ label { display: block; font-weight: 700; margin: 0.625rem 0 0.375rem; color: va
 .ph-interrogation { background: #2563eb; }
 .ph-verdict { background: #b7791f; }
 .ph-done { background: #15803d; }
+.ph-ready { background: #b7791f; }
 .steps { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 0.875rem; }
 .step { padding: 0.1875rem 0.5rem; border-radius: 62.4375rem; color: var(--muted); background: #191e2b; }
 .step.past { color: #c9d1e4; background: #2c3346; }
@@ -357,6 +358,10 @@ html.wide .inv-head { display: flex; align-items: center; gap: 0.6rem 1rem; flex
 html.wide .inv-head .sess-name { font-size: 1.5rem; }
 html.wide .inv-head .grow { flex: 1 1 auto; }
 html.wide .inv-head .sess-actions { margin: 0; }
+html.wide .btn.reveal { font-size: 1.35rem; min-height: 3.4rem; padding: 0.45rem 1.15rem; letter-spacing: 0.02em; }
+html.wide .reveal-hint { color: var(--gold); font-weight: 800; font-size: 1rem; }
+html.wide .await-reveal { background: #2a2416; border: 1px solid var(--gold); }
+
 html.wide .inv-head .verdict-inline { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 html.wide .verdict-inline .vchip { border-radius: 0.7rem; padding: 0.3rem 0.8rem; font-weight: 900; color: #fff; }
 html.wide .vchip.C { background: var(--coop-dark); } html.wide .vchip.D { background: var(--betray-dark); }

@@ -85,6 +85,7 @@
       var at = s.phaseAt[s.phase];
       var extra = '';
       if (s.verdict) extra = '<div class="bsess-ver">' + [0, 1].map(function (i) { return '<span class="c' + s.verdict.choices[i] + '">' + VH.CHOICE_EMOJI[s.verdict.choices[i]] + ' ' + VH.CHOICE_SHORT[s.verdict.choices[i]] + '</span>'; }).join(' vs ') + '</div>';
+      else if (s.awaitingReveal) extra = '<div class="bsess-ver">📢 공개 대기</div>';
       return '<div class="bsess"><div class="nm">' + esc(s.teamName) + '</div>' + extra +
         '<div class="bsess-right">' + VH.phaseBadge(s.phase) + '<div class="timer" data-at="' + at + '" data-ph="' + s.phase + '">' + VH.elapsed(VH.serverNow() - at) + '</div></div></div>';
     }).join('') : '<div class="card muted center bsess-empty">진행 중인 팀이 없어요</div>';
