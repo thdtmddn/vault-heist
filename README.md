@@ -151,9 +151,31 @@ npm start
   1280×720 ~ 1920×1080 화면에서 페이지 스크롤 없이 한 화면에 다 보이고, 글자·버튼은 화면 높이에 맞춰 커집니다.
 - 로비 매니저는 가로·세로 모두 됩니다 (노트북, 세로 태블릿, 폰).
 
-## 12. 테스트 (개발용)
+## 12. 인터넷 주소로 쓰기 (Render 배포판)
+
+노트북 없이도 쓸 수 있게 Render 무료 서버에 올려 두었어요: **https://vault-heist.onrender.com**
+
+| 역할 | 주소 |
+|---|---|
+| 운영진 화면 모음 | https://vault-heist.onrender.com/staff |
+| 로비 매니저 | https://vault-heist.onrender.com/lobby |
+| 잡는 사람 | https://vault-heist.onrender.com/catcher |
+| 수사관 | https://vault-heist.onrender.com/investigator |
+| 전체 현황판 | https://vault-heist.onrender.com/board |
+| 조사실 (용의자) | https://vault-heist.onrender.com/ |
+
+- 기기마다 인터넷(와이파이·데이터)만 되면 되고, 같은 와이파이일 필요는 없어요. QR도 이 주소로 만들어져요.
+- 운영자 PIN은 지금 **1234**예요. 바꾸려면 Render 대시보드 → vault-heist → Environment 에 `ADMIN_PIN`을 추가하세요.
+
+**무료 플랜 주의점**
+- 15분 동안 아무 접속이 없으면 서버가 **잠들고**, 다음 접속 때 깨어나는 데 **30~60초** 걸려요. 부스 열기 몇 분 전에 현황판을 띄워 두세요 (화면이 켜져 있으면 계속 깨어 있어요).
+- 서버가 **재시작되거나 새로 배포되면 진행 중인 세션·채팅·누적 통계가 초기화될 수 있어요** (무료 플랜은 파일이 보존되지 않음). 축제 당일 통계를 꼭 남겨야 하면 노트북 방식(1~3장)을 쓰세요.
+- `config.json`을 바꾸려면 GitHub 저장소(https://github.com/thdtmddn/vault-heist)의 파일을 고치면 자동으로 다시 배포돼요.
+
+## 13. 테스트 (개발용)
 
 ```
 npm test              # 소켓 자동 테스트 (2개 세션 동시, 격리, 선택 숨김, 캔디 보상 3가지, 보상표 고정, 재접속, PIN, 재시작)
+URL=https://vault-heist.onrender.com node test/live.js   # 배포된 서버에서 한 판 진행해 보고 지우기
 npm run screenshots   # 크롬으로 화면을 눌러 보며 16:9 5가지 크기 + 로비 5가지 크기로 screenshots/ 에 저장하고 레이아웃 검사
 ```
