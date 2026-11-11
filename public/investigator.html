@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko" class="wide">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>수사관 · 금고 털이 작전</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <h1>🕵️ 수사관</h1>
+    <div class="tabs grow" id="sessTabs" style="flex:1 1 0;min-width:0"></div>
+    <div class="right">
+      <span class="muted">맡을 용의자</span>
+      <div class="tabs" id="sideTabs">
+        <button class="btn small light" data-side="A">A만</button>
+        <button class="btn small light" data-side="B">B만</button>
+        <button class="btn small light" data-side="both">A+B 둘 다</button>
+      </div>
+      <a class="btn small ghost" href="/lobby">로비</a>
+      <button class="btn small light" id="logout" type="button">로그아웃</button>
+    </div>
+  </div>
+  <div class="shell-body">
+  <div id="none" class="card muted center hidden">세션을 고르세요. 체포된 팀이 위에 나타나요.</div>
+  <div id="detail" class="hidden">
+    <div class="card inv-head">
+      <span class="sess-name" id="dName"></span>
+      <span id="dBadge"></span>
+      <span class="sess-meta" id="dMeta" style="margin:0"></span>
+      <span id="dSteps"></span>
+      <span id="dVerdict" class="verdict-inline"></span>
+      <span class="grow"></span>
+      <span class="sess-actions" id="dActions"></span>
+    </div>
+    <div id="cols" class="inv-cols"></div>
+  </div>
+  </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script src="/investigator.js"></script>
+</body>
+</html>

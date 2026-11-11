@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko" class="wide">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#12151c">
+<title>조사실</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="suspect">
+<div class="sus-wrap">
+
+  <!-- 1. 코드 입력 -->
+  <section id="scrJoin" class="screen hidden">
+    <div class="hero">
+      <div class="icon">🔑</div>
+      <h1>참가 코드 입력</h1>
+      <p>운영진이 알려준 4자리 코드를 입력하세요</p>
+    </div>
+    <form id="joinForm" class="card narrow" style="margin:0 auto;max-width:520px" autocomplete="off">
+      <input id="joinCode" class="big code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="0000">
+      <button class="btn block big gold" type="submit">입장</button>
+      <p id="joinErr" class="err center"></p>
+    </form>
+  </section>
+
+  <!-- 2. 대기 (방탈출 진행 중에는 반전을 위해 아무것도 알려주지 않음) -->
+  <section id="scrWait" class="screen hidden">
+    <div class="hero">
+      <div class="icon">🔒</div>
+      <h1>잠시 기다려 주세요</h1>
+      <p id="waitInfo"></p>
+    </div>
+  </section>
+
+  <!-- 3. 체포·심문·판결 -->
+  <section id="scrRoom" class="screen hidden">
+    <div class="sus-top">
+      <div class="room-title">🚨 조사실 <span id="roomLabel"></span></div>
+      <div id="myCoinsTop" class="my-coins"></div>
+    </div>
+    <div id="susMain" class="sus-main two">
+      <div class="chat">
+        <div id="chatLog" class="chat-log"></div>
+        <form id="chatForm" class="chat-form" autocomplete="off">
+          <input id="chatInput" class="big" type="text" maxlength="300" placeholder="수사관에게 답하기…" autocomplete="off">
+          <button class="btn" type="submit">보내기</button>
+        </form>
+      </div>
+      <div id="side"></div>
+    </div>
+  </section>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script src="/suspect.js"></script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko" class="wide">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>전체 현황판 · 금고 털이 작전</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="board">
+<div class="shell board-wrap">
+  <div class="topbar">
+    <h1 class="board-title">💰 금고 털이 작전 · 현황판</h1>
+    <div class="muted" id="clock" style="font-size:28px;font-weight:800"></div>
+  </div>
+  <div class="board-grid shell-body">
+    <div>
+      <h2>🎬 지금 진행 중</h2>
+      <div id="live"></div>
+      <h2 style="margin-top:20px">⏳ 대기열</h2>
+      <div id="queue" class="muted"></div>
+    </div>
+    <div>
+      <h2>📊 누적 결과 <span class="muted" id="teams"></span></h2>
+      <div class="ratio" id="ratio"></div>
+      <div class="kpis">
+        <div class="kpi cc"><div class="v" id="kCC">0</div><div class="l">🤐🤐 둘 다 협력</div></div>
+        <div class="kpi mx"><div class="v" id="kMX">0</div><div class="l">🤐🗣️ 엇갈림</div></div>
+        <div class="kpi dd"><div class="v" id="kDD">0</div><div class="l">🗣️🗣️ 둘 다 배반</div></div>
+      </div>
+      <div class="kpis" style="grid-template-columns:1fr 1fr;margin-top:12px">
+        <div class="kpi"><div class="v coins" id="kRet">0</div><div class="l">🍬 지급한 캔디</div></div>
+        <div class="kpi"><div class="v coins" id="kConf">0</div><div class="l">💰 압수한 골드코인</div></div>
+      </div>
+      <h2 style="margin-top:20px">🧾 최근 판결</h2>
+      <div id="recent" class="card" style="padding:8px 14px"></div>
+    </div>
+  </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script>
+(function () {
+  'use strict';
+  var VH = window.VH, $ = VH.$, esc = VH.esc;
+  var socket = io({ transports: ['websocket', 'polling'] });
+  VH.connBanner(socket);
+  var data = null;
+  socket.on('connect', function () { socket.emit('board:watch'); });
+  socket.on('board:data', function (d) { data = d; VH.syncNow(d.now); render(); });
+  function render() {
+    var live = data.sessions.filter(function (s) { return s.phase !== 'waiting'; });
+    $('live').innerHTML = live.length ? live.map(function (s) {
+      var at = s.phaseAt[s.phase];
+      var extra = '';
+      if (s.verdict) extra = '<div style="font-size:24px;font-weight:800">' + [0, 1].map(function (i) { return '<span class="c' + s.verdict.choices[i] + '">' + VH.CHOICE_EMOJI[s.verdict.choices[i]] + ' ' + VH.CHOICE_SHORT[s.verdict.choices[i]] + '</span>'; }).join(' vs ') + '</div>';
+      else if (s.coins != null) extra = '<div class="coins" style="font-size:1.5rem">💰 ' + s.coins + '개 압수</div>';
+      return '<div class="bsess"><div><div class="nm">' + esc(s.teamName) + '</div>' + VH.phaseSteps(s.phase) + '</div>' + extra +
+        '<div style="text-align:right">' + VH.phaseBadge(s.phase) + '<div class="timer" data-at="' + at + '" data-ph="' + s.phase + '" style="font-size:30px">' + VH.elapsed(VH.serverNow() - at) + '</div></div></div>';
+    }).join('') : '<div class="card muted center">진행 중인 팀이 없어요</div>';
+    var q = data.sessions.filter(function (s) { return s.phase === 'waiting'; });
+    $('queue').innerHTML = q.length ? q.map(function (s, i) { return '<span class="badge" style="font-size:22px;margin:4px">' + (i + 1) + '. ' + esc(s.teamName) + '</span>'; }).join(' ') : '없음';
+    var st = data.stats, tot = st.cooperate + st.betray;
+    var cp = tot ? Math.round(st.cooperate / tot * 100) : 0;
+    $('teams').textContent = '(' + st.teams + '팀 · ' + tot + '명)';
+    $('ratio').innerHTML = tot ? '<div class="c" style="width:' + cp + '%">' + (cp >= 12 ? '🤐 협력 ' + cp + '%' : '') + '</div><div class="d" style="width:' + (100 - cp) + '%">' + (100 - cp >= 12 ? '🗣️ 배반 ' + (100 - cp) + '%' : '') + '</div>' : '<div style="width:100%;color:#9aa3b8">아직 결과가 없어요</div>';
+    $('kCC').textContent = st.bothCooperate; $('kMX').textContent = st.mixed; $('kDD').textContent = st.bothBetray;
+    $('kConf').textContent = st.confiscated; $('kRet').textContent = st.candies;
+    $('recent').innerHTML = st.recent.length ? st.recent.map(function (r) {
+      return '<div class="recent-row"><span>' + esc(r.team) + ' <span class="muted">' + VH.clock(r.at) + '</span></span><span>' +
+        [0, 1].map(function (i) { return '<span class="c' + r.choices[i] + '">' + VH.CHOICE_SHORT[r.choices[i]] + '</span> 🍬' + r.payout[i]; }).join(' · ') + '</span></div>';
+    }).join('') : '<p class="muted">아직 없음</p>';
+  }
+  function tick() {
+    var d = new Date(VH.serverNow());
+    $('clock').textContent = (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+    var ts = document.querySelectorAll('.timer[data-at]');
+    for (var i = 0; i < ts.length; i++) {
+      var ms = VH.serverNow() - Number(ts[i].getAttribute('data-at'));
+      ts[i].textContent = VH.elapsed(ms);
+      ts[i].classList.toggle('over', ts[i].getAttribute('data-ph') === 'escape' && data && data.escapeTimeLimitSec && ms > data.escapeTimeLimitSec * 1000);
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
