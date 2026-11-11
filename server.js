@@ -31,6 +31,8 @@ const DEFAULT_CONFIG = {
   cleanupHours: 6,
   defaultCoins: 20,
   escapeTimeLimitSec: 180,
+  defaultSessionSec: 480,
+  parallelSessions: 1,
   payoff: { CC: 3, CD: 0, DC: 5, DD: 1 },
   revealPartnerChoice: true,
   showRulesToSuspect: true,
@@ -63,6 +65,8 @@ function loadConfig() {
     cleanupHours: Math.max(0.1, Number(c.cleanupHours) || 6),
     defaultCoins: toInt(c.defaultCoins, 20, 0, 9999),
     escapeTimeLimitSec: toInt(c.escapeTimeLimitSec, 180, 0, 3600),
+    defaultSessionSec: toInt(c.defaultSessionSec, 480, 60, 3600),
+    parallelSessions: toInt(c.parallelSessions, 1, 1, 8),
     payoff: {
       CC: toInt(c.payoff.CC, 3, 0, 999),
       CD: toInt(c.payoff.CD, 0, 0, 999),
@@ -82,6 +86,7 @@ const config = loadConfig();
 
 // ---------- 보상 계산 (payout.js) ----------
 const { computePayout } = require('./payout');
+const waitEst = require('./wait');
 
 // ---------- 상태 저장 ----------
 let state = { sessions: {}, queue: [], results: [], seq: 0 };
@@ -228,11 +233,15 @@ function clearInterrogation(s) {
 }
 function makeVerdict(s) {
   const r = computePayout(s.choices, s.payoff);
-  s.verdict = Object.assign({ choices: s.choices.slice(), coins: s.coins, at: now() }, r);
+  const t = now();
+  const start = waitEst.startedAt(s);
+  s.verdict = Object.assign({ choices: s.choices.slice(), coins: s.coins, at: t }, r);
   removeResult(s);
   state.results.push({
     sid: s.id, team: s.teamName, choices: s.choices.slice(), coins: s.coins || 0,
-    payout: r.payout.slice(), outcome: r.outcome, at: now(),
+    payout: r.payout.slice(), outcome: r.outcome, at: t,
+    startedAt: start || null,
+    durationMs: start && t > start ? t - start : null,
   });
   setPhase(s, 'verdict');
 }
@@ -325,12 +334,26 @@ function sortedSessions() {
   });
 }
 function boardData() {
+  const t = now();
+  const sessions = sortedSessions().filter((s) => s.phase !== 'done' || t - (s.phaseAt.done || 0) < 10 * 60 * 1000);
+  const queue = state.queue.map((id) => state.sessions[id]).filter(Boolean);
+  const active = sessions.filter((s) => s.phase !== 'waiting' && s.phase !== 'done');
+  const est = waitEst.buildQueueEstimates({
+    queue, active, results: state.results, sessions, now: t,
+    defaultSessionSec: config.defaultSessionSec,
+    parallelSessions: config.parallelSessions,
+  });
+  const waitById = {};
+  queue.forEach((s, i) => { waitById[s.id] = est.waits[i]; });
   return {
-    now: now(),
+    now: t,
     escapeTimeLimitSec: config.escapeTimeLimitSec,
-    sessions: sortedSessions().filter((s) => s.phase !== 'done' || now() - (s.phaseAt.done || 0) < 10 * 60 * 1000).map((s) => ({
+    avgSessionSec: Math.round(est.avgMs / 1000),
+    parallelSessions: est.capacity,
+    sessions: sessions.map((s) => ({
       id: s.id, no: s.no, teamName: s.teamName, phase: s.phase, phaseAt: s.phaseAt, coins: s.coins,
       queuePos: state.queue.indexOf(s.id),
+      waitMs: s.phase === 'waiting' ? waitById[s.id] : null,
       verdict: s.verdict && (s.phase === 'verdict' || s.phase === 'done') ? { choices: s.verdict.choices, payout: s.verdict.payout, outcome: s.verdict.outcome } : null,
     })),
     stats: computeStats(),

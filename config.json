@@ -5,6 +5,8 @@
   "cleanupHours": 6,
   "defaultCoins": 20,
   "escapeTimeLimitSec": 180,
+  "defaultSessionSec": 480,
+  "parallelSessions": 1,
   "payoff": {
     "CC": 3,
     "CD": 0,

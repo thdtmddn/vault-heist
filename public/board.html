@@ -9,30 +9,32 @@
 <body class="board">
 <div class="shell board-wrap">
   <div class="topbar">
-    <h1 class="board-title">💰 금고 털이 작전 · 현황판</h1>
-    <div class="muted" id="clock" style="font-size:28px;font-weight:800"></div>
+    <h1 class="board-title">💰 금고 털이 작전</h1>
+    <div class="board-qtotal" id="qTotal">대기 0팀</div>
+    <div class="muted board-clock" id="clock"></div>
   </div>
   <div class="board-grid shell-body">
-    <div>
+    <div class="board-queue-col">
+      <div class="bq-head">
+        <h2>⏳ 대기열</h2>
+        <div class="muted bq-hint" id="qHint"></div>
+      </div>
+      <div id="queue"></div>
+    </div>
+    <div class="board-side">
       <h2>🎬 지금 진행 중</h2>
       <div id="live"></div>
-      <h2 style="margin-top:20px">⏳ 대기열</h2>
-      <div id="queue" class="muted"></div>
-    </div>
-    <div>
       <h2>📊 누적 결과 <span class="muted" id="teams"></span></h2>
       <div class="ratio" id="ratio"></div>
-      <div class="kpis">
-        <div class="kpi cc"><div class="v" id="kCC">0</div><div class="l">🤐🤐 둘 다 협력</div></div>
+      <div class="kpis kpis-all">
+        <div class="kpi cc"><div class="v" id="kCC">0</div><div class="l">🤐🤐 협력</div></div>
         <div class="kpi mx"><div class="v" id="kMX">0</div><div class="l">🤐🗣️ 엇갈림</div></div>
-        <div class="kpi dd"><div class="v" id="kDD">0</div><div class="l">🗣️🗣️ 둘 다 배반</div></div>
+        <div class="kpi dd"><div class="v" id="kDD">0</div><div class="l">🗣️🗣️ 배반</div></div>
+        <div class="kpi"><div class="v coins" id="kRet">0</div><div class="l">🍬 캔디</div></div>
+        <div class="kpi"><div class="v coins" id="kConf">0</div><div class="l">💰 코인</div></div>
       </div>
-      <div class="kpis" style="grid-template-columns:1fr 1fr;margin-top:12px">
-        <div class="kpi"><div class="v coins" id="kRet">0</div><div class="l">🍬 지급한 캔디</div></div>
-        <div class="kpi"><div class="v coins" id="kConf">0</div><div class="l">💰 압수한 골드코인</div></div>
-      </div>
-      <h2 style="margin-top:20px">🧾 최근 판결</h2>
-      <div id="recent" class="card" style="padding:8px 14px"></div>
+      <h2>🧾 최근 판결</h2>
+      <div id="recent" class="card"></div>
     </div>
   </div>
 </div>
@@ -47,25 +49,55 @@
   var data = null;
   socket.on('connect', function () { socket.emit('board:watch'); });
   socket.on('board:data', function (d) { data = d; VH.syncNow(d.now); render(); });
+  function queueLimit() {
+    var h = window.innerHeight;
+    if (h >= 1040) return 8;
+    if (h >= 880) return 7;
+    if (h >= 790) return 6;
+    return 5;
+  }
+  function formatWait(ms) {
+    var n = Number(ms);
+    if (!Number.isFinite(n) || n <= 20 * 1000) return '곧 시작';
+    return '약 ' + Math.max(1, Math.round(n / 60000)) + '분';
+  }
   function render() {
+    var q = data.sessions.filter(function (s) { return s.phase === 'waiting'; })
+      .sort(function (a, b) { return (a.queuePos < 0 ? 999 : a.queuePos) - (b.queuePos < 0 ? 999 : b.queuePos); });
+    $('qTotal').textContent = '대기 ' + q.length + '팀';
+    var avgMin = Math.max(1, Math.round((data.avgSessionSec || 480) / 60));
+    $('qHint').textContent = q.length ? '한 판 약 ' + avgMin + '분 기준' : '';
+    var limit = queueLimit();
+    var shown = q.slice(0, limit);
+    var more = q.length - shown.length;
+    if (!q.length) {
+      $('queue').innerHTML = '<div class="bq-empty">지금 대기 중인 팀이 없어요</div>';
+    } else {
+      $('queue').innerHTML = shown.map(function (s, i) {
+        var wait = formatWait(s.waitMs);
+        var cls = 'bq-item' + (i === 0 ? ' next' : '');
+        return '<div class="' + cls + '"><div class="bq-no">' + (i + 1) + '</div>' +
+          '<div class="bq-name">' + esc(s.teamName) + '</div>' +
+          '<div class="bq-wait">' + wait + '</div></div>';
+      }).join('') + (more > 0 ? '<div class="bq-more">+' + more + '팀 더</div>' : '');
+    }
     var live = data.sessions.filter(function (s) { return s.phase !== 'waiting'; });
     $('live').innerHTML = live.length ? live.map(function (s) {
       var at = s.phaseAt[s.phase];
       var extra = '';
-      if (s.verdict) extra = '<div style="font-size:24px;font-weight:800">' + [0, 1].map(function (i) { return '<span class="c' + s.verdict.choices[i] + '">' + VH.CHOICE_EMOJI[s.verdict.choices[i]] + ' ' + VH.CHOICE_SHORT[s.verdict.choices[i]] + '</span>'; }).join(' vs ') + '</div>';
-      else if (s.coins != null) extra = '<div class="coins" style="font-size:1.5rem">💰 ' + s.coins + '개 압수</div>';
-      return '<div class="bsess"><div><div class="nm">' + esc(s.teamName) + '</div>' + VH.phaseSteps(s.phase) + '</div>' + extra +
-        '<div style="text-align:right">' + VH.phaseBadge(s.phase) + '<div class="timer" data-at="' + at + '" data-ph="' + s.phase + '" style="font-size:30px">' + VH.elapsed(VH.serverNow() - at) + '</div></div></div>';
-    }).join('') : '<div class="card muted center">진행 중인 팀이 없어요</div>';
-    var q = data.sessions.filter(function (s) { return s.phase === 'waiting'; });
-    $('queue').innerHTML = q.length ? q.map(function (s, i) { return '<span class="badge" style="font-size:22px;margin:4px">' + (i + 1) + '. ' + esc(s.teamName) + '</span>'; }).join(' ') : '없음';
+      if (s.verdict) extra = '<div class="bsess-ver">' + [0, 1].map(function (i) { return '<span class="c' + s.verdict.choices[i] + '">' + VH.CHOICE_EMOJI[s.verdict.choices[i]] + ' ' + VH.CHOICE_SHORT[s.verdict.choices[i]] + '</span>'; }).join(' vs ') + '</div>';
+      else if (s.coins != null) extra = '<div class="coins bsess-ver">💰 ' + s.coins + '</div>';
+      return '<div class="bsess"><div class="nm">' + esc(s.teamName) + '</div>' + extra +
+        '<div class="bsess-right">' + VH.phaseBadge(s.phase) + '<div class="timer" data-at="' + at + '" data-ph="' + s.phase + '">' + VH.elapsed(VH.serverNow() - at) + '</div></div></div>';
+    }).join('') : '<div class="card muted center bsess-empty">진행 중인 팀이 없어요</div>';
     var st = data.stats, tot = st.cooperate + st.betray;
     var cp = tot ? Math.round(st.cooperate / tot * 100) : 0;
     $('teams').textContent = '(' + st.teams + '팀 · ' + tot + '명)';
     $('ratio').innerHTML = tot ? '<div class="c" style="width:' + cp + '%">' + (cp >= 12 ? '🤐 협력 ' + cp + '%' : '') + '</div><div class="d" style="width:' + (100 - cp) + '%">' + (100 - cp >= 12 ? '🗣️ 배반 ' + (100 - cp) + '%' : '') + '</div>' : '<div style="width:100%;color:#9aa3b8">아직 결과가 없어요</div>';
     $('kCC').textContent = st.bothCooperate; $('kMX').textContent = st.mixed; $('kDD').textContent = st.bothBetray;
     $('kConf').textContent = st.confiscated; $('kRet').textContent = st.candies;
-    $('recent').innerHTML = st.recent.length ? st.recent.map(function (r) {
+    var recent = (st.recent || []).slice(0, 4);
+    $('recent').innerHTML = recent.length ? recent.map(function (r) {
       return '<div class="recent-row"><span>' + esc(r.team) + ' <span class="muted">' + VH.clock(r.at) + '</span></span><span>' +
         [0, 1].map(function (i) { return '<span class="c' + r.choices[i] + '">' + VH.CHOICE_SHORT[r.choices[i]] + '</span> 🍬' + r.payout[i]; }).join(' · ') + '</span></div>';
     }).join('') : '<p class="muted">아직 없음</p>';
@@ -82,6 +114,7 @@
   }
   tick();
   setInterval(tick, 1000);
+  window.addEventListener('resize', function () { if (data) render(); });
 })();
 </script>
 </body>

@@ -7,6 +7,7 @@ const os = require('os');
 const { spawn } = require('child_process');
 const { io } = require('socket.io-client');
 const { computePayout } = require('../payout');
+const waitEst = require('../wait');
 
 const PORT = 3999;
 const URL = `http://localhost:${PORT}`;
@@ -79,6 +80,49 @@ async function opList(op) {
   r = computePayout(['D', 'C'], { CC: 4, CD: 1, DC: 7, DD: 2 });
   check(r.payout[0] === 7 && r.payout[1] === 1, '설정 바꾼 보상표도 그대로 반영 (7 / 1)');
 
+  console.log('\n[0b] 대기 시간 예상 (단위)');
+  const AVG = 8 * 60 * 1000;
+  check(waitEst.averageDurationMs([], 480) === 480000, '끝난 판이 없으면 기본 시간(초)을 씀');
+  check(waitEst.averageDurationMs([], undefined) === waitEst.DEFAULT_SESSION_SEC * 1000, '기본값이 비어 있으면 8분');
+  const durs = [6, 8, 10].map((m) => ({ durationMs: m * 60 * 1000 }));
+  check(waitEst.averageDurationMs(durs, 480) === AVG, '끝난 판의 평균 길이를 씀 (6·8·10분 → 8분)');
+  const mixed = [{ durationMs: 5000 }, { durationMs: 2 * 3600 * 1000 }, { durationMs: 7 * 60 * 1000 }];
+  check(waitEst.averageDurationMs(mixed, 480) === 7 * 60 * 1000, '너무 짧거나 긴 이상치는 평균에서 뺌');
+  const many = [];
+  for (let i = 0; i < 20; i++) many.push({ durationMs: (i < 5 ? 5 : 10) * 60 * 1000 });
+  check(waitEst.averageDurationMs(many, 480) === 10 * 60 * 1000, '최근 15건만 평균에 반영');
+  const w0 = waitEst.estimateQueueWaits({ queueLength: 3, activeRemainingMs: [], avgMs: AVG, capacity: 1 });
+  check(w0[0] === 0 && w0[1] === AVG && w0[2] === 2 * AVG, '진행 중이 없고 동시 1판이면 대기 = 0, 한 판, 두 판');
+  const w2 = waitEst.estimateQueueWaits({ queueLength: 4, activeRemainingMs: [], avgMs: AVG, capacity: 2 });
+  check(w2[0] === 0 && w2[1] === 0 && w2[2] === AVG && w2[3] === AVG, '동시 2판이면 앞 두 팀은 바로, 뒤 두 팀은 한 판 뒤');
+  const rem = [2 * 60 * 1000, 5 * 60 * 1000];
+  const wA = waitEst.estimateQueueWaits({ queueLength: 3, activeRemainingMs: rem, avgMs: AVG, capacity: 2 });
+  check(wA[0] === 2 * 60 * 1000 && wA[1] === 5 * 60 * 1000 && wA[2] === 2 * 60 * 1000 + AVG, '진행 중인 팀의 남은 시간을 반영해 대기 순서를 매김');
+  check(waitEst.remainingMs({ phase: 'waiting' }, Date.now(), AVG) === 0, '대기 중인 팀은 슬롯을 쓰지 않음');
+  check(waitEst.remainingMs({ phase: 'done', phaseAt: { done: Date.now() } }, Date.now(), AVG) === 0, '종료된 팀은 슬롯을 쓰지 않음');
+  const now = 1_000_000;
+  const mid = waitEst.remainingMs({ phase: 'escape', phaseAt: { escape: now - 3 * 60 * 1000 } }, now, AVG);
+  check(mid === 5 * 60 * 1000, '진행 중이면 남은 시간 = 평균 - 이미 지난 시간');
+  const ot = waitEst.remainingMs({ phase: 'interrogation', phaseAt: { escape: now - 20 * 60 * 1000 } }, now, AVG);
+  check(ot === waitEst.OVERTIME_REMAINING_MS, '평균보다 오래 걸려도 남은 시간을 0으로 두지 않음');
+  const justV = waitEst.remainingMs({ phase: 'verdict', phaseAt: { verdict: now } }, now, AVG);
+  check(justV === waitEst.VERDICT_REMAINING_MS, '판결이 난 팀은 최대 1분으로 잡음');
+  const lateV = waitEst.remainingMs({ phase: 'verdict', phaseAt: { verdict: now - 90 * 1000 } }, now, AVG);
+  check(lateV === 0, '판결 후 1분이 지났으면 남은 시간 0');
+  check(waitEst.formatWait(0) === '곧 시작' && waitEst.formatWait(15000) === '곧 시작', '20초 이하는 "곧 시작"');
+  check(waitEst.formatWait(30000) === '약 1분' && waitEst.formatWait(AVG) === '약 8분', '대기 시간은 분 단위로 반올림해 표시');
+  const built = waitEst.buildQueueEstimates({
+    queue: [{ id: 'A' }, { id: 'B' }, { id: 'C' }],
+    active: [], results: [], now, defaultSessionSec: 480, parallelSessions: 1,
+  });
+  check(built.avgMs === 480000 && built.capacity === 1 && built.waits[0] === 0 && built.waits[2] === 960000, 'buildQueueEstimates: 기본 시간·동시 1판으로 대기 배열을 만듦');
+  const built2 = waitEst.buildQueueEstimates({
+    queue: [{ id: 'A' }],
+    active: [{ id: 'X', phase: 'escape', phaseAt: { escape: now - 1000 } }, { id: 'Y', phase: 'interrogation', phaseAt: { escape: now - 2000 } }],
+    results: [], now, defaultSessionSec: 480, parallelSessions: 1,
+  });
+  check(built2.capacity === 2, '이미 2판이 돌아가면 동시 수용은 2로 올라감');
+
   await startServer();
   console.log('\n[1] 운영자 PIN');
   const lobby = await connect('lobby');
@@ -102,6 +146,11 @@ async function opList(op) {
   const t2 = await emit(lobby, 'op', { action: 'register', teamName: '독수리', members: ['박민수', ''] });
   const t3 = await emit(lobby, 'op', { action: 'register', teamName: '', members: [] });
   let L = await opList();
+  await sleep(150);
+  const qWait = (boardData.sessions || []).filter((s) => s.phase === 'waiting').sort((a, b) => a.queuePos - b.queuePos);
+  check(qWait.length === 3 && qWait[0].waitMs === 0, '현황판: 대기 맨 앞 팀은 곧 시작 (waitMs 0)');
+  check(Math.abs(qWait[1].waitMs - 480000) < 50 && Math.abs(qWait[2].waitMs - 960000) < 50, '현황판: 둘째·셋째 팀은 기본 한 판(8분)·두 판만큼 대기');
+  check(boardData.avgSessionSec === 480 && boardData.parallelSessions === 1, '현황판: 끝난 판이 없으면 기본 8분·동시 1판');
   check(L.sessions.length === 3 && t1.id && t2.id && t3.id, '3팀 등록');
   check(L.sessions.find((s) => s.id === t3.id).teamName === '3팀', '팀 이름 비우면 자동 번호');
   await emit(lobby, 'op', { action: 'move', id: t3.id, dir: 'up' });
@@ -247,6 +296,9 @@ async function opList(op) {
   r = await emit(lobby, 'op', { action: 'reset', id: t4.id });
   L = await opList();
   check(r.ok && L.sessions.find((s) => s.id === t4.id).phase === 'waiting' && L.sessions.find((s) => s.id === t4.id).queuePos === 0, '처음부터: 대기열 맨 앞으로');
+  await sleep(150);
+  const t4b = (boardData.sessions || []).find((s) => s.id === t4.id);
+  check(t4b && t4b.waitMs != null && t4b.waitMs >= 0 && t4b.waitMs <= waitEst.VERDICT_REMAINING_MS, '현황판: 판결 중인 팀이 있으면 대기 1팀은 그 남은 시간(최대 1분)만큼 기다림');
   const closed = next(A2, 'sus:closed');
   await emit(lobby, 'op', { action: 'unbind', id: t2.id, seat: 0 });
   await closed;

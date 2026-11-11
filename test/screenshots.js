@@ -217,10 +217,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await capture(susA, 's8_done', WIDE, { noPageScroll: true, mustSee: ['.big-num'] });
 
   // ---- 현황판 / 스태프 ----
+  // 대기열을 길게 만들어 큰 현황판과 "+N팀 더" 가 보이게
+  for (const t of [['호랑이', '', ''], ['여우', '', ''], ['늑대', '', ''], ['토끼', '', ''], ['곰', '', ''], ['사자', '', '']]) {
+    await lobby.fill('#teamName', t[0]); await lobby.fill('#memA', t[1]); await lobby.fill('#memB', t[2]);
+    await lobby.click('#regForm button[type=submit]');
+    await sleep(80);
+  }
+  await lobby.waitForFunction(() => document.querySelectorAll('.queue-item').length >= 8);
   const board = await open('/board', big);
-  await board.waitForFunction(() => document.querySelectorAll('.bsess').length >= 3);
+  await board.waitForFunction(() => document.querySelectorAll('.bq-item').length >= 5 && document.querySelectorAll('.bsess').length >= 3);
   await sleep(300);
-  await capture(board, 'b1_board', WIDE, { noPageScroll: true, mustSee: ['.kpis', '#kRet', '#recent'] });
+  await capture(board, 'b1_board', WIDE, { noPageScroll: true, mustSee: ['#qTotal', '#queue', '.bq-item', '.bq-wait', '.kpis', '#kRet', '#recent'] });
+  const qTxt = await board.textContent('#queue');
+  check(qTxt.includes('약') && (qTxt.includes('분') || qTxt.includes('곧 시작')), '현황판 대기열에 예상 대기 시간이 보임');
+  check((await board.textContent('#qTotal')).includes('팀'), '현황판 상단에 대기 팀 수가 보임');
   const boardTxt = await board.textContent('body');
   check(!codes.some((c) => boardTxt.includes(c)), '현황판에 참가 코드가 보이지 않음');
   const staff = await open('/staff', big);
